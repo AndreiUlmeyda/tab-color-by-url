@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tab Color — Options</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <h1>Tab Color Rules</h1>
+
+      <form id="add-form" class="add-form">
+        <input
+          id="pattern-input"
+          type="text"
+          placeholder="e.g. github.com/myorg"
+          required
+          autocomplete="off"
+        />
+        <div id="form-palette" class="palette-row"></div>
+        <button type="submit" id="add-btn">Add rule</button>
+      </form>
+
+      <div id="rules-list" class="rules-list"></div>
+      <div id="empty" class="empty" hidden>
+        No rules yet. Add one above to get started.
+      </div>
+    </div>
+    <script type="module" src="main.ts"></script>
+  </body>
+</html>
