@@ -13,8 +13,13 @@ export default defineContentScript({
 
     await applyOverlay(color);
 
-    const observer = new MutationObserver(() => {
-      applyOverlay(color);
+    const observer = new MutationObserver((mutations) => {
+      const isOurChange = mutations.every((m) =>
+        [...m.addedNodes, ...m.removedNodes].every(
+          (n) => n instanceof Element && n.hasAttribute("data-tab-color"),
+        ),
+      );
+      if (!isOurChange) applyOverlay(color);
     });
     observer.observe(document.head, { childList: true, subtree: true });
   },
@@ -81,6 +86,7 @@ function injectFavicon(dataUri: string): void {
   link.rel = "icon";
   link.type = "image/png";
   link.href = dataUri;
+  link.setAttribute("data-tab-color", "1");
   document.head.appendChild(link);
 }
 
