@@ -3,27 +3,43 @@ import { getRules } from "../src/storage";
 import { compositeFavicon } from "../src/composite";
 import type { Message } from "../src/messages";
 
+let headObserver: MutationObserver | null = null;
+
 export default defineContentScript({
   matches: ["<all_urls>"],
   runAt: "document_idle",
   async main() {
-    const rules = await getRules();
-    const color = matchRule(rules, location.href);
-    if (!color) return;
-
-    await applyOverlay(color);
-
-    const observer = new MutationObserver((mutations) => {
-      const isOurChange = mutations.every((m) =>
-        [...m.addedNodes, ...m.removedNodes].every(
-          (n) => n instanceof Element && n.hasAttribute("data-tab-color"),
-        ),
-      );
-      if (!isOurChange) applyOverlay(color);
+    await applyCurrentRule();
+    browser.storage.onChanged.addListener((_changes, area) => {
+      if (area === "local") applyCurrentRule();
     });
-    observer.observe(document.head, { childList: true, subtree: true });
   },
 });
+
+async function applyCurrentRule(): Promise<void> {
+  const rules = await getRules();
+  const color = matchRule(rules, location.href);
+
+  headObserver?.disconnect();
+  headObserver = null;
+
+  if (!color) {
+    document.querySelector("link[data-tab-color]")?.remove();
+    return;
+  }
+
+  await applyOverlay(color);
+
+  headObserver = new MutationObserver((mutations) => {
+    const isOurChange = mutations.every((m) =>
+      [...m.addedNodes, ...m.removedNodes].every(
+        (n) => n instanceof Element && n.hasAttribute("data-tab-color"),
+      ),
+    );
+    if (!isOurChange) applyOverlay(color);
+  });
+  headObserver.observe(document.head, { childList: true, subtree: true });
+}
 
 async function applyOverlay(color: string): Promise<void> {
   const faviconUrl = getFaviconUrl();
