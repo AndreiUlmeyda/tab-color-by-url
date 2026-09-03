@@ -1,6 +1,5 @@
 import { matchRule } from "../src/rules";
 import { getRules } from "../src/storage";
-import { compositeFavicon } from "../src/composite";
 import type { Message } from "../src/messages";
 
 let headObserver: MutationObserver | null = null;
@@ -51,8 +50,12 @@ async function applyOverlay(color: string): Promise<void> {
     return;
   }
 
-  const composited = await compositeFromDataUri(dataUri, color);
-  injectFavicon(composited);
+  try {
+    const composited = await compositeFromDataUri(dataUri, color);
+    injectFavicon(composited);
+  } catch {
+    injectSolidColorFavicon(color);
+  }
 }
 
 function getFaviconUrl(): string | null {
@@ -64,10 +67,13 @@ function getFaviconUrl(): string | null {
 async function fetchFaviconDataUri(url: string): Promise<string | null> {
   return new Promise((resolve) => {
     const msg: Message = { type: "FETCH_FAVICON", url };
-    browser.runtime.sendMessage(msg).then((resp: unknown) => {
-      const r = resp as { dataUri: string | null };
-      resolve(r?.dataUri ?? null);
-    }).catch(() => resolve(null));
+    browser.runtime
+      .sendMessage(msg)
+      .then((resp: unknown) => {
+        const r = resp as { dataUri: string | null };
+        resolve(r?.dataUri ?? null);
+      })
+      .catch(() => resolve(null));
   });
 }
 
@@ -78,16 +84,20 @@ async function compositeFromDataUri(
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const size = Math.max(img.naturalWidth || 32, img.naturalHeight || 32, 32);
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, size, size);
-      const imageData = ctx.getImageData(0, 0, size, size);
-      const composited = compositeFavicon(imageData, color);
-      ctx.putImageData(composited, 0, 0);
-      resolve(canvas.toDataURL("image/png"));
+      try {
+        const size = Math.max(img.naturalWidth || 32, img.naturalHeight || 32, 32);
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, size, size);
+        const stripeH = Math.max(1, Math.round(size * 0.125));
+        ctx.fillStyle = color;
+        ctx.fillRect(0, size - stripeH, size, stripeH);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (err) {
+        reject(err);
+      }
     };
     img.onerror = reject;
     img.src = dataUri;
@@ -95,9 +105,7 @@ async function compositeFromDataUri(
 }
 
 function injectFavicon(dataUri: string): void {
-  const existing = document.querySelector("link[rel*='icon']");
-  if (existing) existing.remove();
-
+  document.querySelector("link[rel*='icon']")?.remove();
   const link = document.createElement("link");
   link.rel = "icon";
   link.type = "image/png";
